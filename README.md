@@ -1,107 +1,262 @@
+# 📱 WhatsApp Bulk Message Automator
 
-# WhatsApp Automator
+A **WhatsApp bulk messaging automation tool** with a modern Flutter Windows desktop UI.  
+Send personalized messages to hundreds of contacts automatically via WhatsApp Web.
 
-Automate sending WhatsApp Web messages in bulk from a CSV file using Selenium.
+---
 
-> ⚠️ **Important:** This project automates WhatsApp Web and can violate platform terms if misused. Use it responsibly and only with consent.
+## 📋 Table of Contents
+
+1. [Overview](#overview)
+2. [Architecture](#architecture)
+3. [Prerequisites](#prerequisites)
+4. [Installation](#installation)
+5. [Running the App](#running-the-app)
+6. [CSV File Format](#csv-file-format)
+7. [Features](#features)
+8. [Project Structure](#project-structure)
+9. [Development Notes](#development-notes)
+
+---
+
+## Overview
+
+This project automates sending bulk WhatsApp messages using **Selenium + WhatsApp Web**.  
+A **Flutter Windows desktop app** provides a clean GUI, while a **Python Flask API** bridges the UI with the Selenium bot.
+
+On first run, Chrome will open WhatsApp Web and ask you to scan the QR code with your phone. After that, the session is saved automatically.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────┐
+│   Flutter Windows App       │  ← You interact here
+│   (whatsapp_automator_ui/)  │
+└────────────┬────────────────┘
+             │ HTTP REST (port 5000)
+             ▼
+┌─────────────────────────────┐
+│   Python Flask API Server   │  ← api_server.py
+│   localhost:5000            │
+└────────────┬────────────────┘
+             │ subprocess
+             ▼
+┌─────────────────────────────┐
+│   Selenium Bot              │  ← driver.py
+│   (Chrome + WhatsApp Web)   │
+└─────────────────────────────┘
+```
+
+**Flow:**
+1. Flutter app auto-starts `api_server.py` on launch
+2. User picks a CSV file and clicks **Start Sending**
+3. Flask spawns a Selenium bot thread
+4. Bot opens Chrome → WhatsApp Web → sends messages one by one
+5. Flutter polls `/api/status` every 2 seconds and shows live progress
+
+---
+
+## Prerequisites
+
+| Tool | Version | Notes |
+|------|---------|-------|
+| Python | 3.8 + | [python.org](https://python.org) |
+| Flutter | 3.3 + | [flutter.dev](https://flutter.dev) |
+| Google Chrome | Latest | Must be installed |
+| Windows | 10 / 11 | Developer Mode must be enabled |
+
+> **Enable Developer Mode** (required for Flutter Windows):  
+> Settings → Privacy & Security → For Developers → Developer Mode → **ON**
+
+---
+
+## Installation
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/AmrNabil12/Whatsapp-Bulk-Sender.git
+cd Whatsapp-Bulk-Sender
+```
+
+### 2. Install Python dependencies
+
+```bash
+pip install flask flask-cors colorama selenium webdriver-manager
+```
+
+### 3. Install Flutter dependencies
+
+```bash
+cd whatsapp_automator_ui
+flutter pub get
+cd ..
+```
+
+### 4. Create the contacts folder
+
+```bash
+mkdir data
+mkdir logs
+```
+
+---
+
+## Running the App
+
+### ▶ Option A — One-click launcher (recommended)
+
+Right-click **`run_app.bat`** → **Run as Administrator**
+
+This will:
+- Enable Developer Mode automatically
+- Install Python dependencies
+- Launch the Flutter Windows app (which auto-starts the API server)
+
+---
+
+### ▶ Option B — Manual (two terminals)
+
+**Terminal 1 — Start the Python server:**
+```bash
+python api_server.py
+```
+Server runs at `http://localhost:5000`
+
+**Terminal 2 — Start the Flutter app:**
+```bash
+cd whatsapp_automator_ui
+flutter run -d windows
+```
+
+---
+
+### ▶ Option C — Server only (for testing)
+
+```bash
+# Windows
+start_server.bat
+
+# or directly
+python api_server.py
+```
+
+---
+
+## CSV File Format
+
+Place your contacts file in the `data/` folder.
+
+> ⚠️ **Important:** Each data row must be **quoted** so the parser treats `phone,message` as a single field.
+
+```
+header_row
+"01012345678,Hello Ahmed! How are you?"
+"01098765432,Hi Sara, checking in!"
+"01155667788,Good morning, hope you're well!"
+```
+
+**Rules:**
+- First row is always skipped (header)
+- Each row: `"phone_number,message"` — wrapped in double quotes
+- Phone format: Egyptian numbers without country code (e.g., `01012345678`)
+- The bot prepends `+2` automatically
+
+You can also upload CSV files directly from within the app (Send screen → Upload button).
+
+---
 
 ## Features
 
-- Send text messages in bulk from a selected CSV file.
-- Persistent browser session (QR login is reused via local browser profile data).
-- Colorized terminal output and automatic success/failure logs.
-- Simple CLI menu (`send`, `send with media`, `quit`).
+| Screen | What it does |
+|--------|-------------|
+| **Splash** | Auto-starts Python server, shows live startup log |
+| **Dashboard** | Live bot status, progress bar, stats (sent / remaining / %) |
+| **Send Messages** | Select CSV, toggle media attachment, Start / Stop bot |
+| **Logs** | View sent & failed number lists, copy to clipboard |
+| **Settings** | Configure server URL, test connection |
 
-## Current Project Structure
+**Additional highlights:**
+- 🌙 Dark / Light mode (follows Windows system theme)
+- 🖥️ Sidebar navigation on wide screens
+- ⏹️ Instant stop — bot quits Chrome and UI resets immediately
+- 📎 Media sending — copy a file (Ctrl+C) then enable the toggle before sending
+- 🔄 Auto-reconnect — splash screen retries if server takes time to start
 
-```text
-.
-├── main.py              # CLI menu and workflow entrypoint
-├── driver.py            # Selenium bot implementation
-├── requirements.txt     # Python dependencies
-├── data/                # Input CSV files (private; ignored by git)
-└── logs/                # Delivery logs (ignored except .gitkeep)
+---
+
+## Project Structure
+
+```
+Whatsapp-Bulk-Sender/
+│
+├── api_server.py              # Flask REST API bridge (NEW)
+├── driver.py                  # Selenium WhatsApp bot (original, unchanged)
+├── main.py                    # Original CLI entry point (unchanged)
+├── requirements.txt           # Python dependencies
+├── run_app.bat                # One-click Windows launcher
+├── start_server.bat           # Server-only launcher
+├── README.md                  # This file
+│
+├── data/                      # 📁 Your CSV contact files go here (git-ignored)
+├── logs/                      # 📁 Sent/failed logs from each run (git-ignored)
+│
+└── whatsapp_automator_ui/     # Flutter Windows app
+    ├── lib/
+    │   ├── main.dart          # App entry point
+    │   ├── app.dart           # MaterialApp + theme
+    │   ├── models/
+    │   │   ├── bot_status.dart    # Bot state model
+    │   │   └── log_entry.dart     # Log entry model
+    │   ├── providers/
+    │   │   └── bot_provider.dart  # State management (ChangeNotifier)
+    │   ├── services/
+    │   │   ├── api_service.dart   # HTTP client for Flask API
+    │   │   └── python_service.dart # Manages Python subprocess
+    │   └── screens/
+    │       ├── splash_screen.dart  # Startup / server launch
+    │       ├── home_screen.dart    # Dashboard + navigation shell
+    │       ├── send_screen.dart    # File picker + send controls
+    │       ├── logs_screen.dart    # Log viewer
+    │       └── settings_screen.dart # Server URL config
+    ├── pubspec.yaml
+    └── android/               # Android platform (for future use)
 ```
 
-## Requirements
+---
 
-- Python 3.9+
-- Google Chrome installed
-- Stable internet connection
+## Development Notes
 
-Install dependencies:
+### API Endpoints
 
-```bash
-pip install -r requirements.txt
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/ping` | Health check |
+| GET | `/api/files` | List CSV files in `data/` |
+| POST | `/api/upload` | Upload a CSV file |
+| GET | `/api/status` | Get current bot state |
+| POST | `/api/start` | Start the bot `{filename, with_media}` |
+| POST | `/api/stop` | Stop the bot |
+| POST | `/api/reset` | Reset status to idle |
+| GET | `/api/logs` | Get log files from `logs/` |
 
-## Input File Format
+### Stop mechanism
 
-Place one or more `.csv` files in the `data/` folder.
+When **Stop** is clicked:
+1. `stop_event.set()` — signals the thread
+2. `bot.quit_driver()` — closes Chrome
+3. `bot_state["status"] = "idle"` — server reflects stopped state
+4. Flutter immediately resets `_botStatus` locally — UI updates instantly
 
-### Expected row format (current parser)
+### WhatsApp session persistence
 
-The current implementation expects each row as a **single quoted CSV value** in this shape:
+Chrome profile is stored in `Whatsapp-Automator-main/` folder (git-ignored).  
+After scanning the QR code once, you stay logged in across restarts.
 
-```csv
-"01012345678,Hello this is a test message"
-"01098765432,Second message line 1
-Second message line 2"
-```
+---
 
-Notes:
+## ⚠️ Disclaimer
 
-- The bot prepends `+2` (Egypt country code) in code when searching contacts.
-- Keep numbers **without** international prefix.
-- Prefer avoiding English commas `,` in message text unless you update parser logic.
-
-A safe sample file is included at `data/example_contacts.csv`.
-
-## Run
-
-```bash
-python main.py
-```
-
-Menu options:
-
-1. Send messages
-2. Send messages with media (experimental workflow)
-3. Quit
-
-## Logs
-
-Each run generates log files in `logs/`:
-
-- `DD-MM-YYYY_HHMMSS_sent.txt`
-- `DD-MM-YYYY_HHMMSS_notsent.txt`
-
-## Known Limitations
-
-- Country code is hardcoded as `+2` in `driver.py`.
-- WhatsApp UI selector changes can break automation.
-- Media option exists in menu but attachment behavior is not fully reliable in current code.
-
-## Privacy & GitHub Readiness
-
-This repository is configured to avoid committing private/large runtime files:
-
-- Personal contact/message files in `data/`
-- Generated logs in `logs/`
-- Browser profile/cache artifacts created by Selenium/Chrome
-- Virtual environments and IDE temp files
-
-If you are uploading for the first time:
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/<your-username>/<repo-name>.git
-git push -u origin main
-```
-
-## License
-
-This project is licensed under the **MIT License**. See [LICENSE](LICENSE).
+This tool is for personal/educational use only. Sending bulk messages through WhatsApp Web may violate [WhatsApp's Terms of Service](https://www.whatsapp.com/legal/terms-of-service). Use responsibly and at your own risk.
